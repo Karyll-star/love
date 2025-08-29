@@ -40,7 +40,7 @@
 
     let positions = [];
     const geometry = new THREE.BufferGeometry();
-    const material = new THREE.LineBasicMaterial({ color: 0xffffff });
+    const material = new THREE.LineBasicMaterial({ color: 0xff6b9d });
     const lines = new THREE.LineSegments(geometry, material);
     group.add(lines);
 
