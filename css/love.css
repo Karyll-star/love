@@ -814,3 +814,16 @@ body::before {
 /* 确保 heart3d 在画布下方，但同层叠上下文 */
 #heart3d { z-index: 3; }
 
+/* 可爱淡粉色信封背板 */
+.envelope-front {
+    background: #ffe3ed !important; /* 淡粉 */
+    border: 2px solid var(--env-border);
+    border-radius: var(--env-radius);
+    box-shadow: var(--shadow);
+}
+.envelope-flap {
+    background: #ffe3ed !important; /* 淡粉 */
+    border: 2px solid var(--env-border);
+    border-radius: var(--env-radius);
+    box-shadow: var(--shadow);
+}
