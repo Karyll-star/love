@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>致鹭鸶</title>
+    <meta name="language" content="zh-CN">
+    <meta name="title" content="致鹭鸶">
+    <link rel="icon" type="image/x-icon" href="https://cdn.jsdelivr.net/gh/sun0225SUN/photos/img/20210715233345.png">
+    <link rel="stylesheet" href="css/love.css">
+</head>
+
+<body>
+
+    <audio autoplay="autoplay" muted playsinline id="audios" preload="auto">
+        <source src="MP3/love.mp3" type="audio/mpeg">
+    </audio>
+    
+    <div class="intro-overlay" id="introOverlay" role="button" aria-label="动画播放中，请稍候">
+        <div class="envelope" aria-hidden="true">
+            <div class="envelope-viewport">
+                <div class="envelope-back"></div>
+                <div class="envelope-front"></div>
+                <div class="envelope-flap"></div>
+                <div class="envelope-letter">
+                    <div class="letter-content">
+                        <div class="letter-heart"></div>
+                        <div class="letter-text">请点击打开信封</div>
+                    </div>
+                    <img class="intro-gif" src="images/biubiubiu.gif" alt="loading animation" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" onselectstart="return false;" unselectable="on" style="-moz-user-select:none;">
+
+        <div class="body_left">
+            
+        </div>
+
+        <div class="body_center love">
+            <div id="heart3d"></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        
+    </div>
+
+    <script type="text/javascript" src="sample/js/three.min.js"></script>
+    <script type="text/javascript" src="sample/js/TrackballControls.js"></script>
+    <script type="text/javascript" src="sample/js/simplex-noise.js"></script>
+    <script type="text/javascript" src="sample/js/OBJLoader.js"></script>
+    <script type="text/javascript" src="sample/js/gsap.min.js"></script>
+    <script type="text/javascript" src="sample/js/MeshSurfaceSampler.js"></script>
+    <script type="text/javascript" src="js/heart3d.js"></script>
+    <script type="text/javascript" src="js/love.js"></script>
+
+</body>
+
+</html>
