@@ -621,3 +621,146 @@ console.log('点击文字 - 特殊动画效果');
         } catch(_){}
     }
 })();
+
+// ===== 音频可视化：底部平滑曲线 + 粒子效果 =====
+(function(){
+    const audioEl = document.getElementById('audios');
+    const canvas = document.getElementById('audioCanvas');
+    if (!audioEl || !canvas) return;
+
+    let ctx, audioCtx, analyser, source, dataArray, rafId;
+    let particles = [];
+
+    function setup() {
+        ctx = canvas.getContext('2d');
+        resize();
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 2048; // 更平滑的时域曲线
+            analyser.smoothingTimeConstant = 0.85;
+            const bufferLength = analyser.fftSize; // 2048
+            dataArray = new Uint8Array(bufferLength);
+            source = audioCtx.createMediaElementSource(audioEl);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+        }
+        draw();
+    }
+
+    function resize(){
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(canvas.clientWidth * dpr);
+        canvas.height = Math.floor(canvas.clientHeight * dpr);
+        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+
+    function draw(){
+        rafId = requestAnimationFrame(draw);
+        analyser.getByteTimeDomainData(dataArray);
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+
+        // 背景柔和渐变
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+        bgGrad.addColorStop(0, 'rgba(255,255,255,0.02)');
+        bgGrad.addColorStop(1, 'rgba(255,107,157,0.08)');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        // 生成平滑路径
+        const sampleCount = 160;
+        const step = Math.floor(dataArray.length / sampleCount);
+        const points = [];
+        const amplitude = h * 0.22; // 降低幅度（原 ~0.36h）
+        for (let i = 0; i < sampleCount; i++) {
+            const v = dataArray[i*step] / 128 - 1; // -1..1
+            const x = (i / (sampleCount - 1)) * w;
+            const y = h * 0.72 + v * amplitude; // 基线靠近底部，幅度较小
+            points.push({x, y, v});
+        }
+
+        ctx.save();
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = 'rgba(255,107,157,0.35)';
+        ctx.shadowBlur = 12;
+        const strokeGrad = ctx.createLinearGradient(0, 0, 0, h);
+        strokeGrad.addColorStop(0, '#ff9fc1');
+        strokeGrad.addColorStop(0.5, '#ff6b9d');
+        strokeGrad.addColorStop(1, '#e11d48');
+        ctx.strokeStyle = strokeGrad;
+
+        ctx.beginPath();
+        for (let i = 0; i < points.length; i++) {
+            const p = points[i];
+            if (i === 0) {
+                ctx.moveTo(p.x, p.y);
+            } else {
+                const prev = points[i - 1];
+                const cx = (prev.x + p.x) / 2;
+                const cy = (prev.y + p.y) / 2;
+                ctx.quadraticCurveTo(prev.x, prev.y, cx, cy);
+            }
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // 粒子效果：随幅度降低，阈值适当提升
+        const peakThreshold = 0.45;
+        const spawnEvery = 6;
+        for (let i = 0; i < points.length; i += spawnEvery) {
+            const p = points[i];
+            if (Math.abs(p.v) > peakThreshold && Math.random() < 0.35) {
+                particles.push({
+                    x: p.x + (Math.random()*8-4),
+                    y: p.y,
+                    vy: - (0.8 + Math.random()*1.1),
+                    life: 1,
+                    size: 2 + Math.random()*2,
+                    hue: 340 + Math.random()*20
+                });
+            }
+        }
+        ctx.save();
+        particles = particles.filter(pt => pt.life > 0);
+        for (const pt of particles) {
+            pt.y += pt.vy;
+            pt.life -= 0.02;
+            const alpha = Math.max(0, pt.life);
+            ctx.fillStyle = `hsla(${pt.hue}, 85%, 65%, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    // 激活音频上下文（在首次允许播放时）
+    function resumeAudioCtx(){
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(()=>{});
+        }
+    }
+
+    // 与现有音频门控兼容：在真正进入后唤起
+    document.addEventListener('click', resumeAudioCtx, true);
+    document.addEventListener('touchstart', resumeAudioCtx, true);
+    document.addEventListener('keydown', resumeAudioCtx, true);
+
+    // 当 overlay 真正 open 后再启动
+    const overlay = document.getElementById('introOverlay');
+    const bootIfOpen = () => {
+        if (!overlay || overlay.classList.contains('open')) {
+            setup();
+            if (overlay) mo.disconnect();
+        }
+    };
+    const mo = new MutationObserver(bootIfOpen);
+    if (overlay) {
+        mo.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+    } else {
+        setup();
+    }
+})();
