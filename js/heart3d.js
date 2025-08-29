@@ -23,6 +23,9 @@
     let heart = null;
     let sampler = null;
     let originHeart = null;
+    let tlBeat = null;
+    let rotTween = null;
+    let running = false;
 
     new THREE.OBJLoader().load('https://assets.codepen.io/127738/heart_2.obj', obj => {
         heart = obj.children[0];
@@ -35,7 +38,7 @@
         originHeart = Array.from(heart.geometry.attributes.position.array);
         sampler = new THREE.MeshSurfaceSampler(heart).build();
         init();
-        renderer.setAnimationLoop(render);
+        startAnim();
     });
 
     let positions = [];
@@ -72,29 +75,61 @@
     }
 
     const beat = { a: 0 };
-    gsap.timeline({ repeat: -1, repeatDelay: 0.3 })
-        .to(beat, { a: 1.2, duration: 0.6, ease: 'power2.in' })
-        .to(beat, { a: 0.0, duration: 0.6, ease: 'power3.out' });
 
-    gsap.to(group.rotation, { y: Math.PI * 2, duration: 12, ease: 'none', repeat: -1 });
+    function startAnim(){
+        if (running) return;
+        running = true;
+        tlBeat = gsap.timeline({ repeat: -1, repeatDelay: 0.3 })
+            .to(beat, { a: 1.2, duration: 0.6, ease: 'power2.in' })
+            .to(beat, { a: 0.0, duration: 0.6, ease: 'power3.out' });
+        rotTween = gsap.to(group.rotation, { y: Math.PI * 2, duration: 12, ease: 'none', repeat: -1 });
+        renderer.setAnimationLoop(render);
+    }
+
+    function stopAnim(){
+        running = false;
+        try { if (tlBeat) tlBeat.kill(); } catch(_){}
+        try { if (rotTween) rotTween.kill(); } catch(_){}
+        renderer.setAnimationLoop(null);
+    }
+
+    function resetHeart(){
+        if (!heart || !originHeart) return;
+        const vs = heart.geometry.attributes.position.array;
+        for (let i = 0; i < vs.length; i+=3) {
+            vs[i] = originHeart[i];
+            vs[i+1] = originHeart[i+1];
+            vs[i+2] = originHeart[i+2];
+        }
+        heart.geometry.attributes.position.needsUpdate = true;
+        // 将整体旋转复位为正面朝向屏幕
+        group.rotation.set(60, 0, 0);
+        // 相机朝向确保正面
+        try { camera.lookAt(new THREE.Vector3(0,0,0)); } catch(_){}
+        // 控制器也重置
+        try { controls.reset(); } catch(_){}
+    }
 
     function render(a) {
         positions = [];
-        spikes.forEach(g => {
+        for (let i = 0; i < spikes.length; i++) {
+            const g = spikes[i];
             g.update(a);
             positions.push(g.one.x, g.one.y, g.one.z);
             positions.push(g.two.x, g.two.y, g.two.z);
-        });
+        }
         geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
 
-        const vs = heart.geometry.attributes.position.array;
-        for (let i = 0; i < vs.length; i+=3) {
-            const v = new THREE.Vector3(originHeart[i], originHeart[i+1], originHeart[i+2]);
-            const noise = simplex.noise4D(originHeart[i]*1.5, originHeart[i+1]*1.5, originHeart[i+2]*1.5, a * 0.0005) + 1;
-            v.multiplyScalar(1 + (noise * 0.15 * beat.a));
-            vs[i] = v.x; vs[i+1] = v.y; vs[i+2] = v.z;
+        if (heart) {
+            const vs = heart.geometry.attributes.position.array;
+            for (let i = 0; i < vs.length; i+=3) {
+                const v = new THREE.Vector3(originHeart[i], originHeart[i+1], originHeart[i+2]);
+                const noise = simplex.noise4D(originHeart[i]*1.5, originHeart[i+1]*1.5, originHeart[i+2]*1.5, a * 0.0005) + 1;
+                v.multiplyScalar(1 + (noise * 0.15 * beat.a));
+                vs[i] = v.x; vs[i+1] = v.y; vs[i+2] = v.z;
+            }
+            heart.geometry.attributes.position.needsUpdate = true;
         }
-        heart.geometry.attributes.position.needsUpdate = true;
 
         controls.update();
         renderer.render(scene, camera);
@@ -111,4 +146,9 @@
     window.addEventListener('resize', onResize);
     const ro = new ResizeObserver(onResize);
     ro.observe(mount);
+
+    // 暴露控制器
+    window.heart3dControl = {
+        resetAndStop(){ resetHeart(); stopAnim(); }
+    };
 })();

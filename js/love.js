@@ -764,3 +764,146 @@ console.log('点击文字 - 特殊动画效果');
         setup();
     }
 })();
+
+// ===== 歌词展示（右侧，两句，读取 MP3/love.lrc） =====
+(function(){
+    const audio = document.getElementById('audios');
+    const panel = document.getElementById('lyricsPanel');
+    const lineCur = document.getElementById('lyricCurrent');
+    const lineNext = document.getElementById('lyricNext');
+    if (!audio || !panel || !lineCur || !lineNext) return;
+
+    function parseLrc(lrc){
+        const out = [];
+        const lines = lrc.split(/\r?\n/);
+        const timeTagRe = /\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]/g;
+        for (const raw of lines) {
+            if (!raw) continue;
+            // 跳过元信息行
+            if (/^\s*\[(ti|ar|al|by|offset):/i.test(raw)) continue;
+            let text = raw.replace(timeTagRe, '').trim();
+            let m;
+            timeTagRe.lastIndex = 0;
+            while ((m = timeTagRe.exec(raw)) !== null) {
+                const mm = parseInt(m[1], 10) || 0;
+                const ss = parseInt(m[2], 10) || 0;
+                const msRaw = m[3] ? m[3].slice(0,3) : '0';
+                const ms = parseInt(msRaw, 10) || 0;
+                const t = mm * 60 + ss + ms / (msRaw.length === 3 ? 1000 : 100);
+                out.push({ t, text });
+            }
+        }
+        out.sort((a,b)=>a.t-b.t);
+        return out;
+    }
+
+    let lyrics = [];
+    let idx = 0;
+
+    function updateLyrics(time){
+        if (!lyrics.length) return;
+        while (idx < lyrics.length - 1 && time >= lyrics[idx + 1].t) idx++;
+        while (idx > 0 && time < lyrics[idx].t) idx--;
+        const cur = lyrics[idx];
+        const nxt = lyrics[idx + 1] || { text: '' };
+        lineCur.textContent = cur ? cur.text : '';
+        lineNext.textContent = nxt ? nxt.text : '';
+    }
+
+    function startSync(){
+        const tick = () => { updateLyrics(audio.currentTime || 0); requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+    }
+
+    async function loadLyrics(){
+        const candidates = ['MP3/love.lrc', 'MP3/love.txt'];
+        for (const url of candidates) {
+            try {
+                const res = await fetch(url + '?t=' + Date.now());
+                if (!res.ok) continue;
+                const text = await res.text();
+                const parsed = parseLrc(text);
+                if (parsed && parsed.length) {
+                    return parsed;
+                }
+            } catch (e) { /* 忽略，尝试下一个候选 */ }
+        }
+        // 占位
+        return parseLrc('[00:00.00] 欢迎~\n[00:10.00] 未找到歌词文件 MP3/love.lrc');
+    }
+
+    // 进入主页面后加载歌词并开始同步
+    const overlay = document.getElementById('introOverlay');
+    const boot = async () => {
+        lyrics = await loadLyrics();
+        idx = 0;
+        startSync();
+    };
+    if (overlay) {
+        const mo = new MutationObserver(()=>{
+            if (overlay.classList.contains('open')) {
+                boot();
+                mo.disconnect();
+            }
+        });
+        mo.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+    } else {
+        boot();
+    }
+})();
+
+// ===== 音乐结束处理：复位并停止动画，隐藏歌词与波形，不重播 =====
+(function(){
+    const audio = document.getElementById('audios');
+    if (!audio) return;
+    const panel = document.getElementById('lyricsPanel');
+    const canvas = document.getElementById('audioCanvas');
+
+    function hideUI(){
+        if (panel) panel.style.display = 'none';
+        if (canvas) canvas.style.display = 'none';
+    }
+
+    audio.addEventListener('ended', () => {
+        try { if (window.heart3dControl) window.heart3dControl.resetAndStop(); } catch(_){}
+        hideUI();
+        // 确保不再自动重播
+        try { audio.pause(); } catch(_){}
+    });
+})();
+
+// ===== 终止重播：结束后彻底禁止再次播放 =====
+(function(){
+    const audio = document.getElementById('audios');
+    if (!audio) return;
+
+    // 全局结束锁
+    window.__audioEndedLock = false;
+
+    // 拦截结束后的任何 play 尝试
+    function guardPlay() {
+        if (window.__audioEndedLock) {
+            try { audio.pause(); } catch(_){}
+        }
+    }
+    audio.addEventListener('play', guardPlay, true);
+    audio.addEventListener('playing', guardPlay, true);
+    document.addEventListener('click', guardPlay, true);
+    document.addEventListener('keydown', guardPlay, true);
+    document.addEventListener('touchstart', guardPlay, true);
+
+    // 若有旧逻辑的重播定时器与循环，尽可能清除/关闭
+    try { audio.loop = false; } catch(_){}
+
+    // 一些旧逻辑可能使用全局变量存放计时器
+    if (window.restartTimer) { try { clearTimeout(window.restartTimer); } catch(_){} window.restartTimer = null; }
+    if (window.unmuteInterval) { try { clearInterval(window.unmuteInterval); } catch(_){} window.unmuteInterval = null; }
+
+    // 标记结束并锁定
+    audio.addEventListener('ended', () => {
+        window.__audioEndedLock = true;
+        try { audio.loop = false; } catch(_){}
+        try { audio.pause(); } catch(_){}
+        try { audio.currentTime = audio.duration || audio.currentTime; } catch(_){}
+    });
+})();
